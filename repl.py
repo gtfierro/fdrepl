@@ -1,5 +1,8 @@
 import itertools
 import re
+from colorama import Fore, Back, Style, init
+
+init(autoreset = True)
 
 version = 0
 
@@ -30,10 +33,14 @@ class FunctionalDependency:
         return False
 
 def is_superkey(attributes, active_set):
+    return attributes in get_superkeys(active_set)
+
+def get_relation(active_set):
+    all_attributes = set()
     for fd in active_set:
-        if not fd.lhs.issubset(attributes):
-            return False
-    return True
+        all_attributes.update(fd.lhs)
+        all_attributes.update(fd.rhs)
+    return all_attributes
 
 def get_superkeys(active_set):
     all_attributes = set()
@@ -72,6 +79,10 @@ def reflexive(active_set):
 def transitive(active_set):
     global version
     new_version = version + 1
+
+    # Create a dictionary to store the transitive closures of each functional dependency
+    transitive_closures = {fd: {fd} for fd in active_set}
+
     new_active_set = active_set.copy()
     for fd1 in active_set:
         for fd2 in active_set:
@@ -80,22 +91,47 @@ def transitive(active_set):
                 if new_fd not in new_active_set and new_fd not in active_set:
                     print(f"TRANSITIVE {fd1.lhs} -> {fd1.rhs} and {fd2.lhs} -> {fd2.rhs}")
                     new_active_set.add(new_fd)
+
+                    # Update the transitive closure for the new_fd
+                    transitive_closures[new_fd] = transitive_closures[fd1].union(transitive_closures[fd2])
+
+    # Update the transitive closures for all functional dependencies in the new_active_set
+    for fd in new_active_set:
+        if fd not in transitive_closures:
+            transitive_closures[fd] = {fd}
+
     active_set.update(new_active_set)
     version = new_version
+
+    return transitive_closures
 
 def combine(active_set):
     global version
     new_version = version + 1
-    new_active_set = set()
+    new_active_set = []
+
+    # Maintain a set of attributes that have been considered for combining
+    combined_attributes = set()
+
     for fd1 in active_set:
         for fd2 in active_set:
             if fd1 != fd2 and fd1.lhs.issuperset(fd2.lhs):
+                # Calculate the new_lhs by union of lhs of both FDs
                 new_lhs = fd1.lhs.union(fd2.lhs)
-                new_fd = FunctionalDependency(new_lhs, fd2.rhs.union(fd1.rhs), new_version)
-                if new_fd not in new_active_set and new_fd not in active_set:
-                    print(f"COMBINE {fd1} AND {fd2}")
-                    new_active_set.add(new_fd)
-    active_set.update(new_active_set)
+                # Calculate the new_rhs by union of rhs of both FDs
+                new_rhs = fd1.rhs.union(fd2.rhs)
+
+                # Check if new_lhs and new_rhs have not been considered before
+                if new_lhs not in combined_attributes and new_rhs not in combined_attributes:
+                    combined_attributes.add(frozenset(new_lhs))
+                    combined_attributes.add(frozenset(new_rhs))
+
+                    new_fd = FunctionalDependency(new_lhs, new_rhs, new_version)
+                    if new_fd not in new_active_set and new_fd not in active_set:
+                        print(f"COMBINE {fd1} AND {fd2}")
+                        new_active_set.append(new_fd)
+
+    active_set.update(set(new_active_set))
     version = new_version
 
 
@@ -129,14 +165,93 @@ def compute_closure(attributes, functional_dependencies):
     return closure
 
 def closure_rules(active_set):
+    reflexive(active_set)
     while True:
         initial_length = len(active_set)
-        reflexive(active_set)
         transitive(active_set)
         combine(active_set)
         split(active_set)
         if len(active_set) == initial_length:
             break
+
+def is_key(attributes, active_set):
+    # Check if the given set of attributes is a superkey
+    if not is_superkey(attributes, active_set):
+        return False
+
+    # Check if there is no proper subset of the attributes that is a superkey
+    for subset_size in range(1, len(attributes)):
+        for subset in itertools.combinations(attributes, subset_size):
+            if is_superkey(set(subset), active_set):
+                return False
+
+    return True
+
+def is_2nf(active_set):
+    key = get_superkeys(active_set)[0]
+
+    # non-key attribute
+    all_attributes = set()
+    for fd in active_set:
+        all_attributes.update(fd.lhs)
+        all_attributes.update(fd.rhs)
+
+    non_key_attributes = all_attributes - key
+
+    # Check if non-prime attributes are fully functionally dependent on the candidate key(s)
+    not_2nf = False
+    for fd in active_set:
+        if fd.lhs != key and fd.lhs.issubset(key) and fd.rhs.intersection(non_key_attributes):
+            print(f"{Fore.RED}Functional Dependency {fd.lhs} -> {fd.rhs} violates 2NF.")
+            not_2nf = True
+    if not_2nf:
+        return False
+
+    # If no violations found, the relation is in 2NF
+    print(Fore.GREEN + "The relation is in 2NF.")
+    return True
+
+def is_3nf(active_set):
+    key = get_superkeys(active_set)[0]
+
+    if not is_2nf(active_set):
+        print(Fore.RED + "Relation is not in 3NF because it is not in 2NF")
+        return False
+
+    # non-key attribute
+    all_attributes = set()
+    for fd in active_set:
+        all_attributes.update(fd.lhs)
+        all_attributes.update(fd.rhs)
+
+    non_key_attributes = all_attributes - key
+
+    key_fds = {fd for fd in active_set if fd.lhs == key}
+
+    for attr in non_key_attributes:
+        for fd in key_fds:
+            if {attr} == fd.rhs and attr not in fd.lhs and fd.version > 1:
+                print(f"{Fore.RED}{attr} is transitively dependent on the key {key} but is not directly dependent, so {fd} violates 3NF")
+                return False
+
+    # If no violations found, the relation is in 3NF
+    print(Fore.GREEN + "The relation is in 3NF.")
+    return True
+
+
+def is_bcnf(active_set):
+    if not is_3nf(active_set):
+        print(Fore.RED+"Relation is not in BCNF because it is not in 3NF")
+        return False
+    for fd in active_set:
+        if fd.trivial:
+            continue
+        if not is_superkey(fd.lhs, active_set):
+            print(Fore.RED + f"{fd}'s lhs is not a superkey, so this is not BCNF")
+            return False
+
+    print(Fore.GREEN + "The relation is in BCNF")
+    return True
 
 def execute_command(command, active_set, version):
     if command == "reflexive":
@@ -175,13 +290,33 @@ def execute_command(command, active_set, version):
                  print(superkey)
          else:
              print("No superkeys found for all attributes in active_set.")
+    elif command.startswith("is-superkey "):
+        attrs = {s.strip() for s in re.sub(r'[{}]', '', command[12:]).split(',')}
+        if is_superkey(attrs, active_set):
+            print(f"{Fore.GREEN}{attrs} is a superkey.")
+        else:
+            print(f"{Fore.RED}{attrs} is not a superkey.")
+    elif command.startswith("is-key "):
+        attrs = {s.strip() for s in re.sub(r'[{}]', '', command[8:]).split(',')}
+        if is_key(attrs, active_set):
+            print(f"{Fore.GREEN}{attrs} is a key.")
+        else:
+            print(f"{Fore.RED}{attrs} is not a key.")
+    elif command == "relation":
+        print(get_relation(active_set))
+    elif command == "is_2nf":
+        is_2nf(active_set)
+    elif command == "is_3nf":
+        is_3nf(active_set)
+    elif command == "is_bcnf":
+        is_bcnf(active_set)
     elif command == "pop":
         if active_set:
             fd = active_set.pop()
             print(f"Popped: {fd}")
         else:
             print("Active set is empty.")
-    elif command == "show":
+    elif command == "show" or command == "fds":
         if active_set:
             print("Current set of functional dependencies:")
             for fd in sorted(active_set, key=lambda x: x.version):
@@ -228,7 +363,7 @@ def main():
     command_history = []
 
     while True:
-        command = input("Enter a command (push/pop/reflexive/transitive/combine/split/show/load/save/quit):\n> ").strip()
+        command = input(Fore.CYAN + "Enter a command:" + Style.RESET_ALL + "\n> ").strip()
         command_history.append(command)
 
         if not execute_command(command, active_set, version):
