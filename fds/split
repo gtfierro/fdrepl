@@ -1,0 +1,4 @@
+push {a, b} -> {c, d, e}
+show
+split
+show

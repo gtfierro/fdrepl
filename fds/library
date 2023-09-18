@@ -1,0 +1,5 @@
+push {author, title} -> {genre}
+push {author} -> {author_birth, author_death}
+push {genre} -> {section}
+push {author, title} -> {title, year}
+push {title, genre} -> {title}

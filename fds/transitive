@@ -1,0 +1,5 @@
+push {a} -> {b}
+push {b} -> {c}
+show
+transitive
+show

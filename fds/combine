@@ -1,0 +1,6 @@
+push {a, b} -> {c}
+push {c} -> {d}
+push {c} -> {e}
+show
+combine
+show

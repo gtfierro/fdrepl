@@ -1,0 +1,2 @@
+push {title, pub_id, au_id} -> {price}
+push {au_id} -> {address}

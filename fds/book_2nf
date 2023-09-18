@@ -1,0 +1,2 @@
+push {title, pub_id} -> {page_count}
+push {page_count} -> {price}

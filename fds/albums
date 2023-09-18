@@ -1,0 +1,3 @@
+push {artist, album} -> {year, label}
+push {label} -> {HQ}
+push {artist, album, label, track} -> {year}

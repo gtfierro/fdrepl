@@ -1,0 +1,3 @@
+push {author, title} -> {genre}
+push {author, title} -> {title, year}
+push {title, genre} -> {title}
