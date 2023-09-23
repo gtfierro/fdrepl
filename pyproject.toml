@@ -1,23 +1,18 @@
-[project]
-name = "fd"
+[tool.poetry]
+name = "fdrepl"
 version = "0.1.0"
-description = "Add your description here"
-authors = [
-    { name = "Gabe Fierro", email = "gtfierro@mines.edu" }
-]
-dependencies = [
-    "colorama>=0.4.6",
-]
+description = ""
+authors = ["Gabe Fierro <gtfierro@mines.edu>"]
+license = "bsd-3-clause"
 readme = "README.md"
-requires-python = ">= 3.8"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+colorama = "^0.4.6"
+
+[tool.poetry.scripts]
+fdrepl = 'fdrepl.repl:repl'
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.rye]
-managed = true
-dev-dependencies = []
-
-[tool.hatch.metadata]
-allow-direct-references = true
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
